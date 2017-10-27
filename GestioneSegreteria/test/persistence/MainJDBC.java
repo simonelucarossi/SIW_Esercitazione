@@ -5,10 +5,14 @@ import java.util.Calendar;
 import java.util.Date;
 
 import model.Corso;
+import model.CorsoDiLaurea;
+import model.Dipartimento;
 import model.Gruppo;
 import model.Indirizzo;
 import model.Studente;
 import persistence.dao.CorsoDao;
+import persistence.dao.CorsoDiLaureaDao;
+import persistence.dao.DipartimentoDao;
 import persistence.dao.GruppoDao;
 import persistence.dao.IndirizzoDao;
 import persistence.dao.StudenteDao;
@@ -39,21 +43,24 @@ public class MainJDBC {
 		Date date3 = cal.getTime();
 
 		DAOFactory factory = DAOFactory.getDAOFactory(DAOFactory.POSTGRESQL);
-		StudenteDao studenteDao = factory.getStudentDAO();
-		GruppoDao gruppoDao = factory.getGruppoDAO();
-		IndirizzoDao indirizzoDao = factory.getIndirizzoDAO();
-		CorsoDao corsoDao = factory.getCorsoDAO();
 		UtilDao util = factory.getUtilDAO();
 		util.dropDatabase();
 		
 		util.createDatabase();
-
+		
 		//crea studenti
 		//crea gruppo
 		//find studenti
 		//find gruppo
 		//delete gruppo/studenti
 		
+		StudenteDao studenteDao = factory.getStudentDAO();
+		GruppoDao gruppoDao = factory.getGruppoDAO();
+		IndirizzoDao indirizzoDao = factory.getIndirizzoDAO();
+		CorsoDao corsoDao = factory.getCorsoDAO();
+		CorsoDiLaureaDao corsoDiLaureaDao = factory.getCorsoDiLaureaDAO();
+		DipartimentoDao dipartimentoDao = factory.getDipartimentoDAO();
+
 		Studente studente1 = new Studente("00000001","Rossi","Mario",date1);
 		
 		Studente studente2 = new Studente();
@@ -107,6 +114,24 @@ public class MainJDBC {
 		
 		gruppoDao.save(gruppo1);
 		
+		Dipartimento dipartimento1 = new Dipartimento("Matematica e Informatica");
+		Dipartimento dipartimento2 = new Dipartimento("Biologia");
+		
+		dipartimentoDao.save(dipartimento1);
+		dipartimentoDao.save(dipartimento2);
+		
+		CorsoDiLaurea corsoDiLaurea1 = new CorsoDiLaurea();
+		corsoDiLaurea1.addCorso(corso1);
+		corsoDiLaurea1.setDipartimento(dipartimento1);
+		
+		CorsoDiLaurea corsoDiLaurea2 = new CorsoDiLaurea();
+		corsoDiLaurea2.addCorso(corso1);
+		corsoDiLaurea2.addCorso(corso2);
+		corsoDiLaurea2.setDipartimento(dipartimento2);
+		
+		corsoDiLaureaDao.save(corsoDiLaurea1);
+		corsoDiLaureaDao.save(corsoDiLaurea2);
+		
 		//RETRIEVE
 		System.out.println("Retrieve all gruppo");
 		for(Gruppo g : gruppoDao.findAll()) {
@@ -131,9 +156,18 @@ public class MainJDBC {
 		}
 		
 		System.out.println("Elenco studenti");
-		gruppoDao.delete(gruppo1);			
 		for(Studente s : studenteDao.findAll()) {
 			System.out.println(s);
-		}		
+		}	
+		
+		System.out.println("Elenco Corsi");
+		for(Corso c : corsoDao.findAll()) {
+			System.out.println(c);
+		}	
+		
+		System.out.println("Elenco Corsi di Laurea");
+		for(CorsoDiLaurea cl : corsoDiLaureaDao.findAll()) {
+			System.out.println(cl);
+		}	
 	}
 }

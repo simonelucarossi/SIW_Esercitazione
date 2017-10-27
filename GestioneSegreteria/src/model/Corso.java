@@ -35,4 +35,15 @@ public class Corso {
 		}
 		this.studenti.add(studente);
 	}
+	
+	public String toString() {
+		StringBuffer str = new StringBuffer("Corso[");
+		str.append(this.getCodice() + ", " + this.getNome());
+		str.append(", {");
+		for (Studente s : this.getStudenti()) {
+			str.append(s.toString());
+		}
+		str.append("}\n");
+		return str.toString();
+	}
 }

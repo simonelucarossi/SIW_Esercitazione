@@ -8,39 +8,40 @@ import java.util.ArrayList;
 import java.util.List;
 
 import model.Corso;
-import model.Gruppo;
+import model.CorsoDiLaurea;
 import model.Studente;
 import persistence.dao.CorsoDao;
-import persistence.dao.StudenteDao;
+import persistence.dao.CorsoDiLaureaDao;
 
 
-public class CorsoDaoJDBC implements CorsoDao {
+public class CorsoDiLaureaDaoJDBC implements CorsoDiLaureaDao {
 	private DataSource dataSource;
 
-	public CorsoDaoJDBC(DataSource dataSource) {
+	public CorsoDiLaureaDaoJDBC(DataSource dataSource) {
 		this.dataSource = dataSource;
 	}
 
-	public void save(Corso corso) {
-		if ( (corso.getStudenti() == null) 
-				|| corso.getStudenti().isEmpty()){
-			throw new PersistenceException("Corso non memorizzato: un corso deve avere almeno uno studente");
+	public void save(CorsoDiLaurea corsoDiLaurea) {
+		if ( (corsoDiLaurea.getCorsi() == null) 
+				|| corsoDiLaurea.getCorsi().isEmpty()){
+			throw new PersistenceException("Corso di laurea non memorizzato: un corso di laurea deve avere almeno un corso");
 		}
 		Connection connection = this.dataSource.getConnection();
 		try {
 			Long id = IdBroker.getId(connection);
-			corso.setCodice(id); 
-			String insert = "insert into corso(codice, nome) values (?,?)";
+			corsoDiLaurea.setCodice(id); 
+			String insert = "insert into corsodilaurea(codice, nome, dipartimento_codice) values (?,?,?)";
 			PreparedStatement statement = connection.prepareStatement(insert);
-			statement.setLong(1, corso.getCodice());
-			statement.setString(2, corso.getNome());
+			statement.setLong(1, corsoDiLaurea.getCodice());
+			statement.setString(2, corsoDiLaurea.getNome());
+			statement.setLong(3, corsoDiLaurea.getDipartimento().getCodice());
 
 			//connection.setAutoCommit(false);
 			//serve in caso gli studenti non siano stati salvati. Il DAO studente apre e chiude una transazione nuova.
 			//connection.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);			
 			statement.executeUpdate();
-			// salviamo anche tutti gli studenti del gruppo in CASACATA
-			this.updateStudenti(corso, connection);
+			
+			this.updateCorsi(corsoDiLaurea, connection);
 			//connection.commit();
 		} catch (SQLException e) {
 			if (connection != null) {
@@ -57,82 +58,90 @@ public class CorsoDaoJDBC implements CorsoDao {
 				throw new PersistenceException(e.getMessage());
 			}
 		}
-	}  
-
-	private void updateStudenti(Corso corso, Connection connection) throws SQLException {
-		StudenteDao studenteDao = new StudenteDaoJDBC(dataSource);
-		for (Studente studente : corso.getStudenti()) {
-			if (studenteDao.findByPrimaryKey(studente.getMatricola()) == null){
-				studenteDao.save(studente);
+	}
+	
+	private void updateCorsi(CorsoDiLaurea corsodilaurea, Connection connection) throws SQLException {
+		CorsoDao corsoDao = new CorsoDaoJDBC(dataSource);
+		for (Corso corso : corsodilaurea.getCorsi()) {
+			if (corsoDao.findByPrimaryKey(corso.getCodice()) == null){
+				corsoDao.save(corso);
 			}
-			
-			String iscritto = "select id from iscritto where matricola_studente=? AND corso_codice=?";
-			PreparedStatement statementIscritto = connection.prepareStatement(iscritto);
-			statementIscritto.setString(1, studente.getMatricola());
-			statementIscritto.setLong(2, corso.getCodice());
-			ResultSet result = statementIscritto.executeQuery();
+			String afferisce = "select id from afferisce where corso_codice=? AND corsodilaurea_codice=?";
+			PreparedStatement statementAfferisce = connection.prepareStatement(afferisce);
+			statementAfferisce.setLong(1, corso.getCodice());
+			statementAfferisce.setLong(2, corsodilaurea.getCodice());
+			ResultSet result = statementAfferisce.executeQuery();
 			if(result.next()){
-				String update = "update studente SET corso_codice = ? WHERE id = ?";
+				String update = "update afferisce SET corsodilaurea_codice = ? WHERE id = ?";
 				PreparedStatement statement = connection.prepareStatement(update);
-				statement.setLong(1, corso.getCodice());
+				statement.setLong(1, corsodilaurea.getCodice());
 				statement.setLong(2, result.getLong("id"));
 				statement.executeUpdate();
 			}else{			
-				String iscrivi = "insert into iscritto(id, matricola_studente, corso_codice) values (?,?,?)";
+				String iscrivi = "insert into afferisce(id, corso_codice, corsodilaurea_codice) values (?,?,?)";
 				PreparedStatement statementIscrivi = connection.prepareStatement(iscrivi);
 				Long id = IdBroker.getId(connection);
 				statementIscrivi.setLong(1, id);
-				statementIscrivi.setString(2, studente.getMatricola());
-				statementIscrivi.setLong(3, corso.getCodice());
+				statementIscrivi.setLong(2, corso.getCodice());
+				statementIscrivi.setLong(3, corsodilaurea.getCodice());
 				statementIscrivi.executeUpdate();
 			}
 		}
 	}
-
-	private void removeForeignKeyFromStudente(Corso corso, Connection connection) throws SQLException {
-		for (Studente studente : corso.getStudenti()) {
-			String update = "update iscritto SET corso_codice = NULL WHERE matricola_studente = ?";
+	
+	private void removeForeignKeyFromCorso(CorsoDiLaurea corsodilaurea, Connection connection) throws SQLException {
+		for (Corso corso : corsodilaurea.getCorsi()) {
+			String update = "update afferisce SET corsodilaurea_codice = NULL WHERE corso_codice = ?";
 			PreparedStatement statement = connection.prepareStatement(update);
-			statement.setString(1, studente.getMatricola());
+			statement.setLong(1, corso.getCodice());
 			statement.executeUpdate();
 		}	
 	}
-
+	
 	/* 
 	 * versione con Join
 	 */
-	public Corso findByPrimaryKeyJoin(Long id) {
+	public CorsoDiLaurea findByPrimaryKeyJoin(Long id) {
 		Connection connection = this.dataSource.getConnection();
-		Corso corso = null;
+		CorsoDiLaurea corsoDiLaurea = null;
 		try {
 			PreparedStatement statement;
-			String query = "select c.codice as c_codice, c.nome as c_nome, s.matricola as s_matricola, s.nome as s_nome, "
+			String query = "select cl.codice as cl_codice, cl.nome as cl_nome, c.codice as c_codice, c.nome as c_nome, "
+					+ "s.matricola as s_matricola, s.nome as s_nome, "
 					+ "s.cognome as s_cognome, s.data_nascita as s_data_nascita, s.indirizzo_codice as s_indirizzo_codice "
-					+ "from corso c, iscritto i, studente s "
-					+ "where c.codice = ?"
-					+ "			AND i.matricola_studente = s.matricola "
-					+ "			AND i.corso_codice = c.codice";
+					+ "from corsodilaurea cl, afferisce a, corso c, studente s, iscritto i "
+					+ "where cl.codice = ?"
+					+ "			AND cl.codice = a.corsodilaurea_codice "
+					+ "			AND a.corso_codice = c.codice "
+					+ "			AND i.corso_codice = c.codice "
+					+ "			AND i.matricola_studente = s.matricola"
+					;
 			statement = connection.prepareStatement(query);
 			statement.setLong(1, id);
 			ResultSet result = statement.executeQuery();
 			boolean primaRiga = true;
 			while (result.next()) {
 				if (primaRiga) {
-					corso = new Corso();
-					corso.setCodice(result.getLong("c_codice"));				
-					corso.setNome(result.getString("c_nome"));
+					corsoDiLaurea = new CorsoDiLaurea();
+					corsoDiLaurea.setCodice(result.getLong("cl_codice"));				
+					corsoDiLaurea.setNome(result.getString("cl_nome"));
 					primaRiga = false;
 				}
-				if(result.getString("s_matricola")!=null){
-					Studente studente = new Studente();
-					studente.setMatricola(result.getString("s_matricola"));
-					studente.setNome(result.getString("s_nome"));
-					studente.setCognome(result.getString("s_cognome"));
-					long secs = result.getDate("s_data_nascita").getTime();
-					studente.setDataNascita(new java.util.Date(secs));
-					IndirizzoDaoJDBC indirizzoDao = new IndirizzoDaoJDBC(dataSource);
-					studente.setIndirizzo(indirizzoDao.findByPrimaryKey(result.getLong("s_indirizzo_codice")));
-					corso.addStudente(studente);
+				if(result.getString("c_codice")!=null){
+					CorsoDaoJDBC corsoDao = new CorsoDaoJDBC(dataSource);
+					Corso corso;
+					corso = corsoDao.findByPrimaryKeyJoin(result.getLong("c_codice"));
+////					corso.setCodice(result.getLong("c_codice"));
+////					corso.setNome(result.getString("c_nome"));
+//					
+//					if (result.getString("s_matricola") != null){
+//						StudenteDaoJDBC studenteDao = new StudenteDaoJDBC(dataSource);
+//						corso.addStudente(studenteDao.findByPrimaryKey(result.getString("s_matricola")));
+//					}
+					
+					corsoDiLaurea.addCorso(corso);
+					
+					
 				}
 			}
 		} catch (SQLException e) {
@@ -144,27 +153,25 @@ public class CorsoDaoJDBC implements CorsoDao {
 				throw new PersistenceException(e.getMessage());
 			}
 		}	
-		return corso;
+		return corsoDiLaurea;
 	}
-
-
 
 	/* 
 	 * versione con Lazy Load
 	 */
-	public Corso findByPrimaryKey(Long id) {
+	public CorsoDiLaurea findByPrimaryKey(Long id) {
 		Connection connection = this.dataSource.getConnection();
-		Corso corso = null;
+		CorsoDiLaurea corsoDiLaurea = null;
 		try {
 			PreparedStatement statement;
-			String query = "select * from corso where codice = ?";
+			String query = "select * from corsodilaurea where codice = ?";
 			statement = connection.prepareStatement(query);
 			statement.setLong(1, id);
 			ResultSet result = statement.executeQuery();
 			if (result.next()) {
-				corso = new Corso();
-				corso.setCodice(result.getLong("codice"));				
-				corso.setNome(result.getString("nome"));
+				corsoDiLaurea = new CorsoDiLaurea();
+				corsoDiLaurea.setCodice(result.getLong("codice"));				
+				corsoDiLaurea.setNome(result.getString("nome"));
 			}
 		} catch (SQLException e) {
 			throw new PersistenceException(e.getMessage());
@@ -175,21 +182,21 @@ public class CorsoDaoJDBC implements CorsoDao {
 				throw new PersistenceException(e.getMessage());
 			}
 		}	
-		return corso;
+		return corsoDiLaurea;
 	}
 
-	public List<Corso> findAll() {
+	public List<CorsoDiLaurea> findAll() {
 		Connection connection = this.dataSource.getConnection();
-		List<Corso> corsi = new ArrayList<>();
+		List<CorsoDiLaurea> corsidilaurea = new ArrayList<>();
 		try {			
-			Corso corso;
+			CorsoDiLaurea corsoDiLaurea;
 			PreparedStatement statement;
-			String query = "select * from corso";
+			String query = "select * from corsodilaurea";
 			statement = connection.prepareStatement(query);
 			ResultSet result = statement.executeQuery();
 			while (result.next()) {
-				corso = findByPrimaryKeyJoin(result.getLong("codice"));
-				corsi.add(corso);
+				corsoDiLaurea = findByPrimaryKeyJoin(result.getLong("codice"));
+				corsidilaurea.add(corsoDiLaurea);
 			}
 		} catch (SQLException e) {
 			throw new PersistenceException(e.getMessage());
@@ -200,21 +207,21 @@ public class CorsoDaoJDBC implements CorsoDao {
 				throw new PersistenceException(e.getMessage());
 			}
 		}
-		return corsi;
+		return corsidilaurea;
 	}
 
-	public void update(Corso corso) {
+	public void update(CorsoDiLaurea corsodilaurea) {
 		Connection connection = this.dataSource.getConnection();
 		try {
 			String update = "update corso SET nome = ? WHERE codice = ?";
 			PreparedStatement statement = connection.prepareStatement(update);
-			statement.setString(1, corso.getNome());
-			statement.setLong(2, corso.getCodice());
+			statement.setString(1, corsodilaurea.getNome());
+			statement.setLong(2, corsodilaurea.getCodice());
 
 			//connection.setAutoCommit(false);
 			//connection.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);			
 			statement.executeUpdate();
-			this.updateStudenti(corso, connection); // se abbiamo deciso di propagare gli update seguendo il riferimento
+			this.updateCorsi(corsodilaurea, connection); // se abbiamo deciso di propagare gli update seguendo il riferimento
 			//connection.commit();
 		} catch (SQLException e) {
 			if (connection != null) {
@@ -233,12 +240,12 @@ public class CorsoDaoJDBC implements CorsoDao {
 		}
 	}
 
-	public void delete(Corso corso) {
+	public void delete(CorsoDiLaurea corsoDiLaurea) {
 		Connection connection = this.dataSource.getConnection();
 		try {
-			String delete = "delete FROM corso WHERE codice = ? ";
+			String delete = "delete FROM corsodilaurea WHERE codice = ? ";
 			PreparedStatement statement = connection.prepareStatement(delete);
-			statement.setLong(1, corso.getCodice());
+			statement.setLong(1, corsoDiLaurea.getCodice());
 
 			/* 
 			 * rimuoviamo gli studenti dal gruppo (ma non dal database) 
@@ -249,7 +256,7 @@ public class CorsoDaoJDBC implements CorsoDao {
 			 * */
 			connection.setAutoCommit(false);
 			connection.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);			
-			this.removeForeignKeyFromStudente(corso, connection);     			
+			this.removeForeignKeyFromCorso(corsoDiLaurea, connection);     			
 			/* 
 			 * ora rimuoviamo il gruppo
 			 * 
@@ -266,4 +273,6 @@ public class CorsoDaoJDBC implements CorsoDao {
 			}
 		}
 	}
+
+
 }

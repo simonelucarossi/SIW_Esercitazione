@@ -49,7 +49,7 @@ public class Gruppo {
 	}
 	
 	public String toString() {
-		StringBuffer str = new StringBuffer("[");
+		StringBuffer str = new StringBuffer("Gruppo[");
 		str.append(this.getId() + ", " + this.getNome());
 		str.append(", {");
 		for (Studente s : this.getStudenti()) {
