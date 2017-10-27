@@ -1,0 +1,65 @@
+<html>
+	<head>
+	
+	</head>
+	
+	<body>
+		<header>
+			<h1 align="center">
+				Iscrivi un nuovo studente
+			</h1>
+		</header>
+		
+		<form action="post" action="iscrivi.php">
+			<table>
+				<tr>
+					<td>Matricola:</td> <td> <input name ="matricola" type = "text" /></td>
+				</tr>
+				<tr>
+					<td>Nome:</td> <td> <input name ="nome" type = "text" /></td>
+				</tr>
+				<tr>
+					<td>Cognome: </td> <td><input name ="cognome" type = "text" /></td>
+				</tr>
+				<tr>
+					<td>Data di nascita: </td> <td><input name ="datadinascita" type = "date" /></td>
+				</tr>
+				<tr>
+					<td>Indirizzo corso di laurea: </td> 
+					<td>
+						<select name="indirizzo">
+							<option value = "rob"> Robotica </option>
+							<option value = "comsc"> Computer Science </option>
+							<option value = "inginf"> Ingegneria Informatica</option>
+							<option value = "ingest"> Ingegneria Gestionale</option>
+							<option value = "eco"> Economia </option>
+							<optgroup label="Storia">
+								<option value="arch"> Archeologia </option>
+							</optgroup>
+						</select> 
+					</td>
+				</tr>
+				<tr>
+					<td>
+						Password:
+					</td>
+					<td>
+						<input name="password" type = "password"/> 
+					</td>
+				</tr>
+				
+				<tr>
+					<td>
+						<input name="validaDati" type = "button" value="Valida dati"/> 
+					</td>
+					<td>
+						<input name="sendDati" type = "submit" value="Invia dati"/> 
+					</td>
+				</tr>
+				
+					
+			</table>
+		</form>
+		
+	</body>
+</html>
